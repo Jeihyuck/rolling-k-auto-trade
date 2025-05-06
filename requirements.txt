@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pandas
+numpy
+FinanceDataReader
+python-dateutil
+requests
+streamlit
