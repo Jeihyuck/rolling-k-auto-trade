@@ -1,49 +1,55 @@
 # rolling_k_auto_trade_api/main.py - FastAPI Entry Point for Auto Trading System
 from fastapi import FastAPI
-from fastapi import APIRouter
-from datetime import datetime
+from fastapi.middleware.cors import CORSMiddleware
+from rolling_k_auto_trade_api.strategies import (
+    run_rebalance_for_date,
+    auto_trade_on_rebalance,
+    check_sell_conditions,
+    generate_performance_report
+)
+from rolling_k_auto_trade_api.models import BuyOrderRequest, SellOrderRequest
+from rolling_k_auto_trade_api.orders import execute_buy_order, execute_sell_order
 import pandas as pd
+from datetime import datetime
 
-from rolling_k_auto_trade_api.strategies import run_rebalance_for_date, auto_trade_on_rebalance, check_sell_conditions, generate_performance_report
-from rolling_k_auto_trade_api.orders import router as order_router, get_order_status
-from rolling_k_auto_trade_api.dashboard import dashboard_summary
+app = FastAPI(title="Rolling-K Auto Trade API")
 
-app = FastAPI()
-app.include_router(order_router)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.get("/rebalance/{date}")
-def get_rebalance(date: str):
-    return run_rebalance_for_date(date)
+@app.get("/")
+def root():
+    return {"message": "Rolling-K Auto Trade API is running."}
 
 @app.get("/rebalance/latest")
-def get_latest():
-    from datetime import datetime
-    import pandas as pd
-    from rolling_k_auto_trade_api.strategies import run_rebalance_for_date
+def get_rebalance_latest():
+    try:
+        today = pd.to_datetime(datetime.today().replace(day=1))
+        date_str = today.strftime('%Y-%m-%d')
+        return run_rebalance_for_date(date_str)
+    except Exception as e:
+        return {"error": str(e)}
 
-    # 오늘 날짜 기준 이번 달 1일
-    today = pd.to_datetime(datetime.today().replace(day=1))
-    date_str = today.strftime('%Y-%m-%d')
+@app.get("/rebalance/run/{date}")
+def run_rebalance(date: str):
+    return run_rebalance_for_date(date)
 
-    return run_rebalance_for_date(date_str)
+@app.post("/order/buy")
+def buy_stocks(request: BuyOrderRequest):
+    return execute_buy_order(request)
 
+@app.post("/order/sell")
+def sell_stocks(request: SellOrderRequest):
+    return execute_sell_order(request)
 
-@app.post("/rebalance/run/{date}")
-def trigger_rebalance_and_trade(date: str):
-    return auto_trade_on_rebalance(date)
-
-@app.post("/sell/check")
-def sell_check():
+@app.get("/sell/check")
+def check_sell():
     return check_sell_conditions()
 
-@app.get("/order/status")
-def order_status():
-    return get_order_status()
-
 @app.get("/dashboard")
-def get_dashboard():
-    return dashboard_summary()
-
-@app.get("/report")
-def get_report():
+def dashboard():
     return generate_performance_report()
